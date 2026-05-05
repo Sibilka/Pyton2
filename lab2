@@ -3,99 +3,64 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.io import wavfile
 
-def main():
-    # --- Измерение времени выполнения ---
-    start_time = time.time()
+start = time.time()
+filename = "/Users/rma/Documents/lab2/33.wav"
 
-    # --- Параметры ---
-    filename = "/Users/rma/Documents/lab2/33.wav"
+# Чтение файла
+try:
+    rate, data = wavfile.read(filename)
+except:
+    print("Ошибка чтения файла")
+    exit()
+
+if data.ndim > 1:
+    data = data[:, 0]  # берём первый канал
+
+print(f"Частота: {rate} Гц, Отсчётов: {len(data)}")
+
+# Ввод количества отсчётов
+while True:
     try:
-        rate, data = wavfile.read(filename)
-    except FileNotFoundError:
-        print(f"Ошибка: файл '{filename}' не найден. Убедитесь, что он находится в текущей папке.")
-        return
-    except Exception as e:
-        print(f"Ошибка при чтении файла: {e}")
-        return
+        n = int(input(f"Отсчётов (1..{len(data)}): "))
+        if 1 <= n <= len(data):
+            break
+    except:
+        print("Введите число")
 
-    # Если сигнал стерео, преобразуем в моно (берём первый канал)
-    if len(data.shape) > 1:
-        print("Файл стерео, для анализа используется первый канал.")
-        data = data[:, 0]
+# 1. График первых n отсчётов (линия с маркерами '*')
+plt.figure(1)
+plt.plot(range(n), data[:n], marker='*', linestyle='-', markersize=3)
+plt.title(f"Первые {n} отсчётов")
+plt.xlabel("Номер отсчёта")
+plt.ylabel("Амплитуда")
+plt.grid()
 
-    # --- Вывод информации о сигнале ---
-    print(f"Частота дискретизации: {rate} Гц (ожидается 48000 Гц)")
-    print(f"Общее количество отсчётов: {len(data)}")
-    print(f"Длительность: {len(data)/rate:.2f} сек")
+# 2. Осциллограмма всего сигнала
+t = np.arange(len(data)) / rate
+plt.figure(2)
+plt.plot(t, data)
+plt.title("Осциллограмма")
+plt.xlabel("Время, с")
+plt.ylabel("Амплитуда")
+plt.grid()
 
-    # --- 1. Чтение и визуализация заданного количества отсчётов ---
-    # Ввод количества отсчётов с клавиатуры
-    while True:
-        try:
-            n_samples = int(input(f"Введите количество отсчётов для визуализации (1..{len(data)}): "))
-            if 1 <= n_samples <= len(data):
-                break
-            else:
-                print(f"Число должно быть в диапазоне от 1 до {len(data)}.")
-        except ValueError:
-            print("Пожалуйста, введите целое число.")
+# 3. Спектр (мнимая часть ДПФ)
+fft_imag = np.imag(np.fft.fft(data.astype(float)))
+freq = np.fft.fftfreq(len(data), 1/rate)
+plt.figure(3)
+plt.plot(freq[freq >= 0], fft_imag[freq >= 0])
+plt.title("Мнимая часть ДПФ")
+plt.xlabel("Частота, Гц")
+plt.ylabel("Im(ДПФ)")
+plt.grid()
 
-    # Подготовка данных для графика
-    samples_to_plot = data[:n_samples]
-    indices = np.arange(n_samples)
+# 4. Гистограмма амплитуд
+plt.figure(4)
+plt.hist(data, bins='auto', edgecolor='black')
+plt.title("Гистограмма амплитуд")
+plt.xlabel("Амплитуда")
+plt.ylabel("Количество отсчётов")
+plt.grid()
 
-    plt.figure("1. Визуализация отсчётов")
-    plt.plot(indices, samples_to_plot, marker='*', linestyle='-', markersize=3, linewidth=1, color='b')
-    plt.title(f"График первых {n_samples} отсчётов сигнала")
-    plt.xlabel("Номер отсчёта")
-    plt.ylabel("Амплитуда (кванты)")
-    plt.grid(True, alpha=0.3)
-
-    # --- 2. Осциллограмма всего сигнала как функция времени ---
-    time_axis = np.arange(len(data)) / rate   # время в секундах
-
-    plt.figure("2. Осциллограмма сигнала")
-    plt.plot(time_axis, data, color='g', linewidth=0.8)
-    plt.title("Осциллограмма речевого сигнала")
-    plt.xlabel("Время, с")
-    plt.ylabel("Амплитуда (кванты)")
-    plt.grid(True, alpha=0.3)
-
-    # --- 3. Спектральный анализ: мнимая часть ДПФ всех отсчётов ---
-    # Преобразуем в float для ДПФ, чтобы избежать переполнения
-    data_float = data.astype(float)
-
-    # Вычисляем ДПФ
-    fft_result = np.fft.fft(data_float)
-    imag_fft = np.imag(fft_result)                # мнимая часть
-    freqs = np.fft.fftfreq(len(data_float), d=1/rate)  # частоты, Гц
-
-    # Для визуализации обычно используют только положительные частоты (0 .. fs/2)
-    positive_freqs = freqs[freqs >= 0]
-    positive_imag = imag_fft[freqs >= 0]
-
-    plt.figure("3. Спектральный анализ (мнимая часть ДПФ)")
-    plt.plot(positive_freqs, positive_imag, color='r', linewidth=0.8)
-    plt.title("Мнимая часть ДПФ речевого сигнала")
-    plt.xlabel("Частота, Гц")
-    plt.ylabel("Im(ДПФ)")
-    plt.grid(True, alpha=0.3)
-
-    # --- 4. Гистограмма отсчётов звукового сигнала ---
-    plt.figure("4. Гистограмма амплитуд")
-    # bins='auto' автоматически подбирает число интервалов
-    plt.hist(data, bins='auto', color='purple', alpha=0.7, edgecolor='black')
-    plt.title("Гистограмма распределения амплитуд сигнала")
-    plt.xlabel("Амплитуда (кванты)")
-    plt.ylabel("Количество отсчётов")
-    plt.grid(True, alpha=0.3)
-
-    # Показываем все графики
-    plt.show()
-
-    # --- Время выполнения ---
-    elapsed = time.time() - start_time
-    print(f"Время выполнения программы: {elapsed:.4f} секунд")
-
-if __name__ == "__main__":
-    main()
+plt.show()
+print(f"Время: {time.time() - start:.3f} с")
